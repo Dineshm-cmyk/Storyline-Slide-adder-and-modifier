@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storyline Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f2f7;--s1:#ffffff;--s2:#f4f6fb;--s3:#eaecf3;
+  --b1:#dde1ed;--b2:#c8cedf;
+  --acc:#2563eb;--acc2:#7c3aed;--grn:#059669;--red:#dc2626;--ylw:#d97706;
+  --t1:#111827;--t2:#4b5563;--t3:#9ca3af;
+  --mono:'JetBrains Mono',monospace;--sans:'Syne',sans-serif;
+  --r:8px;
+}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Header ── */
+header{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 24px;height:52px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+.logo{width:28px;height:28px;background:linear-gradient(135deg,var(--acc),var(--acc2));border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+header h1{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.step-pills{display:flex;gap:6px;margin-left:auto}
+.pill{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono);border:1px solid var(--b2);color:var(--t3);transition:.2s}
+.pill.done{border-color:rgba(46,232,154,.3);color:var(--grn);background:rgba(46,232,154,.07)}
+.pill.active{border-color:rgba(79,140,255,.4);color:var(--acc);background:rgba(79,140,255,.1)}
+
+/* ── Layout ── */
+.app{display:flex;flex:1;overflow:hidden}
+
+/* ── Left panel ── */
+.left{width:310px;min-width:310px;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid var(--b1);font-size:10px;font-weight:700;letter-spacing:1.4px;color:var(--t3);text-transform:uppercase;display:flex;align-items:center;justify-content:space-between}
+.panel-hd span{font-size:10px;font-family:var(--mono);color:var(--t3)}
+
+/* ── Slide lists ── */
+.list-section{display:flex;flex-direction:column;overflow:hidden}
+.list-section.template{flex:0 0 auto;max-height:45%}
+.list-section.working{flex:1;overflow:hidden}
+.slide-list{overflow-y:auto;flex:1}
+.slide-list::-webkit-scrollbar{width:3px}
+.slide-list::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+.slide-row{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;border-left:3px solid transparent;transition:.12s;user-select:none}
+.slide-row:hover{background:var(--s2)}
+.slide-row.active{background:rgba(79,140,255,.08);border-left-color:var(--acc)}
+.slide-row.working-slide{border-left-color:transparent}
+.slide-row.working-slide.active{border-left-color:var(--acc)}
+.slide-row.from-tmpl{border-left-color:var(--grn)}
+.slide-row.from-tmpl.active{background:rgba(46,232,154,.06)}
+.slide-row.dragging{opacity:.35}
+.slide-row.drag-above{border-top:2px solid var(--acc)}
+.slide-row.drag-below{border-bottom:2px solid var(--acc)}
+
+.s-num{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--acc);min-width:26px}
+.slide-row.from-tmpl .s-num{color:var(--grn)}
+.s-name{font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t1)}
+.s-tag{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;font-family:var(--mono);flex-shrink:0}
+.tag-tmpl{background:rgba(79,140,255,.1);color:var(--acc)}
+.tag-wk{background:rgba(139,148,176,.08);color:var(--t2)}
+.tag-new{background:rgba(46,232,154,.1);color:var(--grn)}
+.drag-h{color:var(--t3);font-size:11px;cursor:grab;padding:0 2px;flex-shrink:0}
+
+/* ── Divider between lists ── */
+.list-divider{height:1px;background:var(--b1)}
+
+/* ── Right panel ── */
+.right{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.content{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:18px}
+.content::-webkit-scrollbar{width:4px}
+.content::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* ── Upload zones ── */
+.upload-zone{border:2px dashed var(--b2);border-radius:var(--r);padding:36px 24px;display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;transition:.2s;text-align:center}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--acc);background:rgba(79,140,255,.04)}
+.upload-zone.done{border-color:rgba(46,232,154,.4);background:rgba(46,232,154,.04)}
+.uz-icon{font-size:32px}
+.uz-title{font-size:15px;font-weight:700}
+.uz-sub{font-size:12px;color:var(--t2)}
+.uz-btn{background:var(--acc);color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;margin-top:4px}
+.uz-btn:hover{opacity:.85}
+.uz-done-name{font-size:12px;font-family:var(--mono);color:var(--grn);background:rgba(46,232,154,.08);padding:4px 10px;border-radius:4px}
+input[type=file]{display:none}
+
+/* ── Cards ── */
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);overflow:hidden}
+.card-hd{padding:12px 16px;border-bottom:1px solid var(--b1);font-size:10px;font-weight:700;letter-spacing:1.2px;color:var(--t2);text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.card-body{padding:16px}
+
+/* ── Form elements ── */
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;font-weight:600}
+select,input[type=number],input[type=text]{background:var(--s2);border:1px solid var(--b2);color:var(--t1);border-radius:5px;padding:7px 10px;font-size:12px;font-family:var(--sans);outline:none;transition:.15s}
+select:focus,input:focus{border-color:var(--acc)}
+select{min-width:180px}
+input[type=number]{width:70px}
+input[type=text]{min-width:200px}
+
+/* ── Buttons ── */
+.btn{border:none;border-radius:5px;padding:8px 16px;font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{opacity:.85}
+.btn:active{transform:scale(.97)}
+.btn-acc{background:var(--acc);color:#fff}
+.btn-grn{background:var(--grn);color:#fff}
+.btn-red{background:rgba(255,80,99,.12);color:var(--red);border:1px solid rgba(255,80,99,.2)}
+.btn-ghost{background:transparent;color:var(--t2);border:1px solid var(--b2)}
+.btn-ghost:hover{border-color:var(--acc);color:var(--acc)}
+.btn-export{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;padding:10px 24px;font-size:13px}
+
+/* ── Detail grid ── */
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.d-item label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;display:block;margin-bottom:3px}
+.d-val{font-family:var(--mono);font-size:11px;color:var(--t1);background:var(--s2);border:1px solid var(--b1);border-radius:4px;padding:6px 8px;word-break:break-all}
+.d-item.full{grid-column:1/-1}
+
+/* ── Name editor ── */
+.name-editor{display:flex;gap:8px;align-items:center}
+.name-editor input{flex:1;font-size:13px;padding:8px 12px}
+.name-editor .btn{flex-shrink:0}
+
+/* ── XML Editor ── */
+.xml-editor{width:100%;min-height:260px;background:var(--s2);border:1px solid var(--b2);border-radius:5px;color:var(--t1);font-family:var(--mono);font-size:11px;padding:10px;resize:vertical;outline:none;line-height:1.6;transition:.15s}
+.xml-editor:focus{border-color:var(--acc)}
+.editor-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.editor-note{font-size:11px;color:var(--t3);margin-left:auto;font-family:var(--mono)}
+
+/* ── Export bar ── */
+.export-bar{background:var(--s1);border-top:1px solid var(--b1);padding:12px 24px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.export-bar span{font-size:12px;color:var(--t2);font-family:var(--mono)}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:var(--r);padding:10px 16px;font-size:12px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 32px rgba(0,0,0,.25);opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none;z-index:9999;font-family:var(--mono)}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.ok{border-color:rgba(46,232,154,.4)}
+.toast.err{border-color:rgba(255,80,99,.4)}
+
+/* ── Step screens ── */
+.step-screen{display:flex;flex-direction:column;gap:16px}
+.step-title{font-size:18px;font-weight:800;color:var(--t1)}
+.step-sub{font-size:13px;color:var(--t2)}
+
+/* ── Add slides panel ── */
+.add-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1)}
+.add-row:last-child{border-bottom:none}
+.add-row .s-name{font-size:12px;flex:1;color:var(--t1)}
+.add-row .s-num{font-family:var(--mono);font-size:10px;color:var(--acc);min-width:24px}
+
+/* ── Empty ── */
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:32px;color:var(--t3);text-align:center}
+.empty .icon{font-size:24px}
+.empty p{font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚡</div>
+  <h1>Storyline Manager</h1>
+  <div class="step-pills">
+    <div class="pill" id="pill1">1 · Template</div>
+    <div class="pill" id="pill2">2 · Working File</div>
+    <div class="pill" id="pill3">3 · Edit &amp; Export</div>
+  </div>
+  <button class="btn-reset" onclick="resetAll()" title="Start over">↺ Reset</button>
+</header>
+
+<div class="app">
+  <!-- Left sidebar -->
+  <div class="left">
+
+    <!-- Template slides -->
+    <div class="list-section template">
+      <div class="panel-hd">Template <span id="tmplCount">—</span></div>
+      <div class="slide-list" id="tmplList">
+        <div class="empty"><div class="icon">📋</div><p>No template loaded</p></div>
+      </div>
+    </div>
+
+    <div class="list-divider"></div>
+
+    <!-- Working slides -->
+    <div class="list-section working">
+      <div class="panel-hd">Working File <span id="workCount">—</span></div>
+      <div class="slide-list" id="workList">
+        <div class="empty"><div class="icon">📂</div><p>No working file loaded</p></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right content -->
+  <div class="right">
+    <div class="content" id="mainContent">
+
+      <!-- STEP 1 & 2: Upload zones always visible until loaded -->
+      <div id="uploadSection">
+        <div class="step-screen">
+          <div>
+            <div class="step-title">Step 1 — Template File</div>
+            <div class="step-sub">Upload your .story template — slides you'll copy from</div>
+          </div>
+
+          <div class="upload-zone" id="tmplZone">
+            <div class="uz-icon">📋</div>
+            <div class="uz-title">Drop Template .story file</div>
+            <div class="uz-sub">Renames .story → .zip internally, extracts, reads slides</div>
+            <input type="file" id="tmplInput" accept=".story,.zip">
+            <button class="uz-btn" onclick="document.getElementById('tmplInput').click()">Choose Template File</button>
+          </div>
+
+          <div style="margin-top:8px">
+            <div class="step-title">Step 2 — Working File</div>
+            <div class="step-sub">Upload the .story file you want to modify</div>
+          </div>
+
+          <div class="upload-zone" id="workZone">
+            <div class="uz-icon">📂</div>
+            <div class="uz-title">Drop Working .story file</div>
+            <div class="uz-sub">This is the file you'll export at the end</div>
+            <input type="file" id="workInput" accept=".story,.zip">
+            <button class="uz-btn" onclick="document.getElementById('workInput').click()">Choose Working File</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3: Edit panel (hidden until working file loaded) -->
+      <div id="editSection" style="display:none">
+
+        <!-- Add slides from template -->
+        <div class="card" id="addFromTmplCard" style="display:none">
+          <div class="card-hd">➕ Add Slides from Template</div>
+          <div class="card-body">
+            <div class="row">
+              <div class="field">
+                <label>Template Slide</label>
+                <select id="tmplSlideSel"></select>
+              </div>
+              <div class="field">
+                <label>Insert After</label>
+                <select id="insertAfterSel"></select>
+              </div>
+              <div class="field">
+                <label>New Name (optional)</label>
+                <input type="text" id="newSlideName" placeholder="Leave blank to keep original">
+              </div>
+              <div class="field" style="justify-content:flex-end">
+                <button class="btn btn-grn" onclick="addSlideFromTemplate()">＋ Add Slide</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selected slide detail -->
+        <div class="card" id="slideDetailCard" style="display:none">
+          <div class="card-hd" id="slideDetailHd">📋 Slide Detail</div>
+          <div class="card-body">
+            <div style="margin-bottom:14px">
+              <label class="field" style="margin-bottom:8px"><span style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;font-weight:600">Rename Slide</span></label>
+              <div class="name-editor">
+                <input type="text" id="renameInput" placeholder="Slide name">
+                <button class="btn btn-acc" onclick="renameSelectedSlide()">Rename</button>
+                <button class="btn btn-red" id="removeBtn" onclick="removeSelected()" style="display:none">🗑 Remove</button>
+              </div>
+            </div>
+            <div class="detail-grid" id="detailGrid"></div>
+          </div>
+        </div>
+
+        <!-- XML Editor -->
+        <div class="card" id="xmlEditorCard" style="display:none">
+          <div class="card-hd">✏️ Edit Slide Content (XML)</div>
+          <div class="card-body">
+            <textarea class="xml-editor" id="xmlEditor" spellcheck="false"></textarea>
+            <div class="editor-actions">
+              <button class="btn btn-acc" onclick="saveXmlEdit()">💾 Save Changes</button>
+              <button class="btn btn-ghost" onclick="revertXml()">↩ Revert</button>
+              <span class="editor-note" id="xmlNote">Editing raw slide XML — be careful</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Remove -->
+        <div class="card" id="removeCard" style="display:none">
+          <div class="card-hd">🗑 Remove Slide</div>
+          <div class="card-body">
+            <button class="btn btn-red" id="removeCardBtn" onclick="removeSelected()">Remove Selected Slide</button>
+            <span style="font-size:11px;color:var(--t3);margin-left:10px">Only slides added from template can be removed</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Export bar -->
+    <div class="export-bar" id="exportBar" style="display:none">
+      <span id="exportInfo">—</span>
+      <button class="btn btn-export" onclick="exportStory()">⬇ Export .story</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+// Template
+let tmplZip = null, tmplFiles = {}, tmplSlides = [], tmplStoryXml = '';
+let tmplLoaded = false;
+
+// Working
+let workZip = null, workFiles = {}, workSlides = [];
+let workFilename = 'output.story';
+let workStoryXml = '', workRelsXml = '', workContentTypes = '';
+let workLoaded = false;
+
+let selectedSide = null; // 'tmpl' or 'work'
+let selectedIdx = null;
+let dragSrcIdx = null;
+
+// Track edited XML per working slide (index -> modified xml string)
+let editedXml = {};
+
+// ── Upload wiring ──────────────────────────────────────────────────────────
+function wireUpload(zoneId, inputId, handler) {
+  const zone = document.getElementById(zoneId);
+  const inp  = document.getElementById(inputId);
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); handler(e.dataTransfer.files[0]); });
+  inp.addEventListener('change', e => handler(e.target.files[0]));
+}
+
+wireUpload('tmplZone', 'tmplInput', handleTemplateFile);
+wireUpload('workZone', 'workInput', handleWorkingFile);
+
+async function loadStoryFile(file) {
+  // .story IS a zip — just load it directly
+  const zip = await JSZip.loadAsync(file);
+  const files = {};
+  for (const [path, entry] of Object.entries(zip.files)) {
+    if (!entry.dir) files[path] = await entry.async('uint8array');
+  }
+  return { zip, files };
+}
+
+function getText(files, path) {
+  const b = files[path];
+  if (!b) return null;
+  return new TextDecoder('utf-8').decode(b);
+}
+
+function parseSlides(files) {
+  const relsXml = getText(files, 'story/_rels/story.xml.rels');
+  const storyXml = getText(files, 'story/story.xml');
+  if (!relsXml || !storyXml) throw new Error('Missing story.xml or rels');
+
+  const parser = new DOMParser();
+  const relsDoc = parser.parseFromString(relsXml, 'text/xml');
+  const storyDoc = parser.parseFromString(storyXml, 'text/xml');
+
+  const relMap = {};
+  Array.from(relsDoc.querySelectorAll('Relationship[Type="slide"]')).forEach(r => {
+    relMap[r.getAttribute('Id')] = r.getAttribute('Target');
+  });
+
+  // Build ordered list of { relId, sceneGuid } across all scenes
+  const orderedEntries = [];
+  Array.from(storyDoc.querySelectorAll('sceneLst scene')).forEach(scene => {
+    const sceneGuid = scene.getAttribute('g') || '';
+    Array.from(scene.querySelectorAll('sldIdLst sldId')).forEach(n => {
+      orderedEntries.push({ relId: n.textContent.trim(), sceneGuid });
+    });
+  });
+
+  const slides = [];
+  orderedEntries.forEach(({ relId, sceneGuid }, idx) => {
+    const target = relMap[relId];
+    if (!target) return;
+    const filePath = target.replace(/^\//, '');
+    const relsPath = filePath.replace('story/slides/', 'story/slides/_rels/') + '.rels';
+    const slideXml = getText(files, filePath) || '';
+    let name = 'Slide ' + (idx + 1);
+    let slideGuid = '';
+    const mN = slideXml.match(/<sld[^>]+name="([^"]*)"/);
+    if (mN) name = mN[1];
+    const mG = slideXml.match(/<sld[^>]+\bg="([^"]*)"/);
+    if (mG) slideGuid = mG[1];
+    const relsContent = getText(files, relsPath) || '';
+    let mediaRefs = [];
+    if (relsContent) {
+      const rDoc = parser.parseFromString(relsContent, 'text/xml');
+      mediaRefs = Array.from(rDoc.querySelectorAll('Relationship')).map(r => ({
+        id: r.getAttribute('Id'), type: r.getAttribute('Type'), target: r.getAttribute('Target')
+      }));
+    }
+    slides.push({ num: '1.' + (idx + 1), name, file: filePath, relsFile: relsPath, relId, slideGuid, sceneGuid, mediaRefs, relsContent, isFromTemplate: false });
+  });
+  return { slides, relsXml, storyXml, contentTypes: getText(files, '[Content_Types].xml') || '' };
+}
+
+async function handleTemplateFile(file) {
+  if (!file) return;
+  try {
+    const { zip, files } = await loadStoryFile(file);
+    tmplZip = zip; tmplFiles = files;
+    const result = parseSlides(files);
+    tmplSlides = result.slides;
+    tmplStoryXml = result.storyXml;
+    tmplLoaded = true;
+    // Mark zone done
+    const zone = document.getElementById('tmplZone');
+    zone.classList.add('done');
+    zone.innerHTML = `<div class="uz-icon">✅</div><div class="uz-title">Template Loaded</div><div class="uz-done-name">${file.name} · ${tmplSlides.length} slides</div>`;
+    updatePills();
+    renderTmplList();
+    populateAddSelect();
+    // If working file is already loaded, show the add panel now
+    if (workLoaded) document.getElementById('addFromTmplCard').style.display = '';
+    toast('✅ Template: ' + tmplSlides.length + ' slides', 'ok');
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+async function handleWorkingFile(file) {
+  if (!file) return;
+  try {
+    workFilename = file.name.replace(/\.(story|zip)$/i, '') + '.story';
+    const { zip, files } = await loadStoryFile(file);
+    workZip = zip; workFiles = files;
+    const result = parseSlides(files);
+    workSlides = result.slides;
+    workStoryXml = result.storyXml;
+    workRelsXml = result.relsXml;
+    workContentTypes = result.contentTypes;
+    workLoaded = true;
+    editedXml = {};
+    // Mark zone done
+    const zone = document.getElementById('workZone');
+    zone.classList.add('done');
+    zone.innerHTML = `<div class="uz-icon">✅</div><div class="uz-title">Working File Loaded</div><div class="uz-done-name">${file.name} · ${workSlides.length} slides</div>`;
+    updatePills();
+    renderWorkList();
+    showEditSection();
+    populateAddSelect();
+    toast('✅ Working file: ' + workSlides.length + ' slides', 'ok');
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+function showEditSection() {
+  document.getElementById('editSection').style.display = '';
+  document.getElementById('exportBar').style.display = '';
+  if (tmplLoaded) document.getElementById('addFromTmplCard').style.display = '';
+  updateExportInfo();
+}
+
+// ── Render sidebar lists ────────────────────────────────────────────────────
+function renderTmplList() {
+  const list = document.getElementById('tmplList');
+  list.innerHTML = '';
+  document.getElementById('tmplCount').textContent = tmplSlides.length;
+  if (!tmplSlides.length) { list.innerHTML = '<div class="empty"><div class="icon">📋</div><p>No slides</p></div>'; return; }
+  tmplSlides.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'slide-row' + (selectedSide === 'tmpl' && selectedIdx === i ? ' active' : '');
+    row.innerHTML = `<span class="s-num">${s.num}</span><span class="s-name" title="${s.name}">${s.name}</span><span class="s-tag tag-tmpl">TMPL</span>`;
+    row.addEventListener('click', () => selectSlide('tmpl', i));
+    list.appendChild(row);
+  });
+}
+
+function renderWorkList() {
+  const list = document.getElementById('workList');
+  list.innerHTML = '';
+  document.getElementById('workCount').textContent = workSlides.length;
+  if (!workSlides.length) { list.innerHTML = '<div class="empty"><div class="icon">📂</div><p>No slides</p></div>'; return; }
+  workSlides.forEach((s, i) => {
+    const row = document.createElement('div');
+    const classes = ['slide-row', 'working-slide'];
+    if (s.isFromTemplate) classes.push('from-tmpl');
+    if (selectedSide === 'work' && selectedIdx === i) classes.push('active');
+    row.className = classes.join(' ');
+    row.dataset.idx = i;
+    row.draggable = true;
+    row.innerHTML = `<span class="drag-h" title="Drag to reorder">⠿</span><span class="s-num">${s.num}</span><span class="s-name" title="${s.name}">${s.name}</span><span class="s-tag ${s.isFromTemplate ? 'tag-new' : 'tag-wk'}">${s.isFromTemplate ? 'NEW' : 'SRC'}</span>`;
+    row.addEventListener('click', () => selectSlide('work', i));
+    row.addEventListener('dragstart', () => { dragSrcIdx = i; row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => { row.classList.remove('dragging'); clearDragHL(); });
+    row.addEventListener('dragover', e => { e.preventDefault(); highlightDrop(row, e, i); });
+    row.addEventListener('drop', e => { e.preventDefault(); dropSlide(i, e); clearDragHL(); });
+    list.appendChild(row);
+  });
+  updateExportInfo();
+}
+
+// ── Drag & drop reorder (working list) ────────────────────────────────────
+function clearDragHL() {
+  document.querySelectorAll('.drag-above,.drag-below').forEach(el => el.classList.remove('drag-above','drag-below'));
+}
+function highlightDrop(row, e, i) {
+  clearDragHL();
+  const r = row.getBoundingClientRect();
+  row.classList.add(e.clientY < r.top + r.height / 2 ? 'drag-above' : 'drag-below');
+}
+function dropSlide(targetIdx, e) {
+  if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+  const row = document.querySelector(`.slide-row[data-idx="${targetIdx}"]`);
+  const r = row.getBoundingClientRect();
+  const before = e.clientY < r.top + r.height / 2;
+  const moved = workSlides.splice(dragSrcIdx, 1)[0];
+  // also move editedXml entries
+  const movedXml = editedXml[dragSrcIdx];
+  const newEditedXml = {};
+  Object.entries(editedXml).forEach(([k, v]) => { if (parseInt(k) !== dragSrcIdx) newEditedXml[k] = v; });
+  let at = targetIdx;
+  if (dragSrcIdx < targetIdx) at--;
+  if (!before) at++;
+  at = Math.max(0, Math.min(workSlides.length, at));
+  workSlides.splice(at, 0, moved);
+  if (movedXml !== undefined) newEditedXml[at] = movedXml;
+  editedXml = newEditedXml;
+  renumber();
+  if (selectedSide === 'work') selectedIdx = at;
+  dragSrcIdx = null;
+  renderWorkList();
+  populateAddSelect();
+}
+
+// ── Select slide ───────────────────────────────────────────────────────────
+function selectSlide(side, i) {
+  selectedSide = side;
+  selectedIdx = i;
+  renderTmplList();
+  renderWorkList();
+
+  const s = side === 'tmpl' ? tmplSlides[i] : workSlides[i];
+  const files = side === 'tmpl' ? tmplFiles : workFiles;
+
+  document.getElementById('slideDetailCard').style.display = '';
+  document.getElementById('slideDetailHd').textContent = (side === 'tmpl' ? '📋 Template Slide' : '📄 Working Slide') + ' — ' + s.name;
+  document.getElementById('renameInput').value = s.name;
+
+  // Remove button only for working slides added from template
+  const removeBtn = document.getElementById('removeBtn');
+  const removeCard = document.getElementById('removeCard');
+  if (side === 'work' && s.isFromTemplate) {
+    removeBtn.style.display = '';
+    removeCard.style.display = '';
+  } else {
+    removeBtn.style.display = 'none';
+    removeCard.style.display = 'none';
+  }
+
+  // Detail grid
+  const grid = document.getElementById('detailGrid');
+  grid.innerHTML = `
+    <div class="d-item"><label>Number</label><div class="d-val">${s.num}</div></div>
+    <div class="d-item"><label>Type</label><div class="d-val">${side === 'tmpl' ? 'Template' : (s.isFromTemplate ? '🟢 From Template' : '🔵 Original')}</div></div>
+    <div class="d-item full"><label>File</label><div class="d-val">${s.file}</div></div>
+    <div class="d-item full"><label>GUID</label><div class="d-val">${s.slideGuid || '—'}</div></div>
+    <div class="d-item full"><label>Media (${s.mediaRefs.length})</label><div class="d-val">${s.mediaRefs.map(m => m.target.split('/').pop()).join(', ') || '—'}</div></div>
+  `;
+
+  // XML Editor — only for working slides
+  const xmlCard = document.getElementById('xmlEditorCard');
+  if (side === 'work') {
+    xmlCard.style.display = '';
+    const currentXml = editedXml[i] !== undefined ? editedXml[i] : (getText(files, s.file) || '');
+    document.getElementById('xmlEditor').value = currentXml;
+    document.getElementById('xmlNote').textContent = editedXml[i] !== undefined ? '⚠ Unsaved changes' : 'Editing raw slide XML — be careful';
+  } else {
+    xmlCard.style.display = 'none';
+  }
+}
+
+// ── Rename ────────────────────────────────────────────────────────────────
+function renameSelectedSlide() {
+  if (selectedIdx === null) return;
+  const newName = document.getElementById('renameInput').value.trim();
+  if (!newName) { toast('❌ Name cannot be empty', 'err'); return; }
+  const arr = selectedSide === 'tmpl' ? tmplSlides : workSlides;
+  arr[selectedIdx].name = newName;
+  if (selectedSide === 'tmpl') renderTmplList();
+  else { renderWorkList(); populateAddSelect(); }
+  toast('✅ Renamed to "' + newName + '"', 'ok');
+  document.getElementById('slideDetailHd').textContent = (selectedSide === 'tmpl' ? '📋 Template Slide' : '📄 Working Slide') + ' — ' + newName;
+}
+
+// ── XML edit ──────────────────────────────────────────────────────────────
+let originalXmlForRevert = '';
+function saveXmlEdit() {
+  if (selectedSide !== 'work' || selectedIdx === null) return;
+  const xml = document.getElementById('xmlEditor').value;
+  editedXml[selectedIdx] = xml;
+  document.getElementById('xmlNote').textContent = '✅ Saved (will apply on export)';
+  toast('✅ XML changes saved', 'ok');
+}
+function revertXml() {
+  if (selectedSide !== 'work' || selectedIdx === null) return;
+  delete editedXml[selectedIdx];
+  const s = workSlides[selectedIdx];
+  const xml = getText(workFiles, s.file) || '';
+  document.getElementById('xmlEditor').value = xml;
+  document.getElementById('xmlNote').textContent = 'Reverted to original';
+  toast('↩ Reverted', 'ok');
+}
+
+// ── Remove slide ──────────────────────────────────────────────────────────
+function removeSelected() {
+  if (selectedSide !== 'work' || selectedIdx === null) return;
+  const s = workSlides[selectedIdx];
+  if (!s.isFromTemplate) { toast('❌ Can only remove slides added from template', 'err'); return; }
+  workSlides.splice(selectedIdx, 1);
+  delete editedXml[selectedIdx];
+  // Shift editedXml keys
+  const newEx = {};
+  Object.entries(editedXml).forEach(([k, v]) => {
+    const ki = parseInt(k);
+    if (ki > selectedIdx) newEx[ki - 1] = v;
+    else if (ki < selectedIdx) newEx[ki] = v;
+  });
+  editedXml = newEx;
+  selectedIdx = null;
+  selectedSide = null;
+  renumber();
+  renderWorkList();
+  populateAddSelect();
+  document.getElementById('slideDetailCard').style.display = 'none';
+  document.getElementById('xmlEditorCard').style.display = 'none';
+  document.getElementById('removeCard').style.display = 'none';
+  toast('🗑 Slide removed', 'ok');
+}
+
+// ── Merge mediaLst entries from template into working story.xml ──────────────
+function mergeMediaLstEntries(slideXml) {
+  if (!tmplStoryXml || !workStoryXml) return;
+
+  // Extract all mediaLst entries from template (media, video, audio elements)
+  const tmplMediaBlocks = extractMediaBlocks(tmplStoryXml);
+  if (!Object.keys(tmplMediaBlocks).length) return;
+
+  const workMediaGuids = extractMediaGuids(workStoryXml);
+
+  // Scan ALL GUID values in the slide XML — not just assetG=
+  // This catches assetG (images/video/audio asset), thumbG (video thumbnail), and any future attrs
+  const NULL_GUID = '00000000-0000-0000-0000-000000000000';
+  const allGuidsInSlide = new Set();
+  const guidRe = /"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/gi;
+  let gm;
+  while ((gm = guidRe.exec(slideXml)) !== null) {
+    if (gm[1] !== NULL_GUID) allGuidsInSlide.add(gm[1].toLowerCase());
+  }
+
+  let newEntries = '';
+  for (const g of allGuidsInSlide) {
+    if (workMediaGuids.has(g)) continue;     // already in working file
+    const block = tmplMediaBlocks[g];
+    if (block) newEntries += block;           // only add if it's actually a mediaLst asset
+  }
+  if (!newEntries) return;
+
+  // Inject into working story.xml's inner <mediaLst>
+  // Structure: <mediaLst><mediaLst>...entries...</mediaLst></mediaLst>
+  const innerClose = '</mediaLst>';
+  const idx = workStoryXml.indexOf(innerClose);
+  if (idx < 0) return;
+  workStoryXml = workStoryXml.slice(0, idx) + newEntries + workStoryXml.slice(idx);
+  workFiles['story/story.xml'] = new TextEncoder().encode(workStoryXml);
+}
+
+function extractMediaBlocks(storyXml) {
+  const result = {};
+  const re = /<(media|video|audio) g="([^"]+)"[\s\S]*?<\/\1>/g;
+  let m;
+  while ((m = re.exec(storyXml)) !== null) {
+    result[m[2]] = m[0];  // m[2] = guid, m[0] = full block including <video>...</video>
+  }
+  return result;
+}
+
+function extractMediaGuids(storyXml) {
+  const guids = new Set();
+  const re = /<(?:media|video|audio) g="([^"]+)"/g;
+  let m;
+  while ((m = re.exec(storyXml)) !== null) guids.add(m[1]);
+  return guids;
+}
+
+// ── Add slide from template ────────────────────────────────────────────────
+function populateAddSelect() {
+  const tmplSel = document.getElementById('tmplSlideSel');
+  const afterSel = document.getElementById('insertAfterSel');
+  const prevT = tmplSel.value, prevA = afterSel.value;
+  tmplSel.innerHTML = '';
+  afterSel.innerHTML = '';
+  tmplSlides.forEach((s, i) => tmplSel.appendChild(new Option(s.num + ' — ' + s.name, i)));
+  if (workSlides.length === 0) {
+    afterSel.appendChild(new Option('— Insert as first slide —', -1));
+  } else {
+    workSlides.forEach((s, i) => afterSel.appendChild(new Option(s.num + ' — ' + s.name, i)));
+    if (prevA !== '' && prevA < workSlides.length) afterSel.value = prevA;
+  }
+  if (prevT !== '' && prevT < tmplSlides.length) tmplSel.value = prevT;
+}
+
+function getNextSlideFileNum() {
+  const nums = workSlides.map(s => { const m = s.file.match(/slide(\d+)\.xml$/); return m ? parseInt(m[1]) : 0; });
+  // Also check tmplFiles numbers used in workFiles
+  const used = new Set(nums);
+  let n = Math.max(0, ...nums) + 1;
+  while (used.has(n)) n++;
+  return n;
+}
+
+function randomHex(len) { let r = ''; for (let i = 0; i < len; i++) r += Math.floor(Math.random()*16).toString(16); return r; }
+function randomGuid() { return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8); return v.toString(16); }); }
+
+function addSlideFromTemplate() {
+  if (!tmplLoaded) { toast('❌ Load a template first', 'err'); return; }
+  if (!workLoaded) { toast('❌ Load a working file first', 'err'); return; }
+  const tmplIdx  = parseInt(document.getElementById('tmplSlideSel').value);
+  const afterIdx = parseInt(document.getElementById('insertAfterSel').value);
+  const customName = document.getElementById('newSlideName').value.trim();
+  const src = tmplSlides[tmplIdx];
+  const newNum = getNextSlideFileNum();
+  const newFile = 'story/slides/slide' + newNum + '.xml';
+  const newRelsFile = 'story/slides/_rels/slide' + newNum + '.xml.rels';
+  const newRelId = 'R' + randomHex(16);
+  const newGuid = randomGuid();
+  const slideName = customName || src.name;
+
+  // Copy the slide XML from tmplFiles and patch it
+  let srcXml = getText(tmplFiles, src.file) || '';
+  srcXml = srcXml.replace(/(<sld\s[^>]*\bg=")[^"]*"/, '$1' + newGuid + '"');
+  srcXml = srcXml.replace(/(<sld\s[^>]*\bverG=")[^"]*"/, '$1' + randomGuid() + '"');
+  srcXml = srcXml.replace(/(<sld\s[^>]*\bname=")[^"]*"/, '$1' + slideName.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '"');
+
+  // Store new slide XML in workFiles so export can find it
+  workFiles[newFile] = new TextEncoder().encode(srcXml);
+
+  // Copy rels from template
+  const srcRels = getText(tmplFiles, src.relsFile) || '';
+  if (srcRels) workFiles[newRelsFile] = new TextEncoder().encode(srcRels);
+  else workFiles[newRelsFile] = new TextEncoder().encode('<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>');
+
+  // Copy all media files referenced in this slide's rels into workFiles
+  const parser = new DOMParser();
+  if (srcRels) {
+    const rDoc = parser.parseFromString(srcRels, 'text/xml');
+    Array.from(rDoc.querySelectorAll('Relationship')).forEach(r => {
+      const tgt = r.getAttribute('Target') || '';
+      const mediaPath = tgt.replace(/^\//, '');
+      if (mediaPath && tmplFiles[mediaPath] && !workFiles[mediaPath]) {
+        workFiles[mediaPath] = tmplFiles[mediaPath];
+      }
+    });
+  }
+
+  // Merge mediaLst entries from template story.xml into working story.xml
+  // Storyline uses assetG (in slide XML) -> <media g="..."> in story.xml mediaLst to resolve images/shapes
+  mergeMediaLstEntries(srcXml);
+
+  // When working file is empty, use the first scene from workStoryXml
+  let insertSceneGuid;
+  if (workSlides.length === 0 || afterIdx < 0) {
+    // Get first scene guid from working story.xml
+    const sceneMatch = workStoryXml.match(/<scene[^>]+g="([^"]+)"/);
+    insertSceneGuid = sceneMatch ? sceneMatch[1] : src.sceneGuid || '';
+  } else {
+    insertSceneGuid = workSlides[afterIdx].sceneGuid;
+  }
+
+  const newSlide = {
+    num: '', name: slideName, file: newFile, relsFile: newRelsFile,
+    relId: newRelId, slideGuid: newGuid, mediaRefs: src.mediaRefs.slice(),
+    relsContent: srcRels, isFromTemplate: true,
+    sceneGuid: insertSceneGuid
+  };
+
+  const insertAt = (workSlides.length === 0 || afterIdx < 0) ? 0 : afterIdx + 1;
+  workSlides.splice(insertAt, 0, newSlide);
+  renumber();
+  selectedSide = 'work';
+  selectedIdx = insertAt;
+  document.getElementById('newSlideName').value = '';
+  renderWorkList();
+  populateAddSelect();
+  selectSlide('work', insertAt);
+  const afterLabel = insertAt === 0 ? 'beginning' : 'slide ' + workSlides[insertAt - 1].num;
+  toast('✅ Added "' + slideName + '" after ' + afterLabel, 'ok');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function renumber() { workSlides.forEach((s, i) => { s.num = '1.' + (i + 1); }); }
+function updateExportInfo() {
+  const n = workSlides.filter(s => s.isFromTemplate).length;
+  document.getElementById('exportInfo').textContent = workSlides.length + ' slides · ' + n + ' from template · drag to reorder';
+}
+function updatePills() {
+  const p1 = document.getElementById('pill1');
+  const p2 = document.getElementById('pill2');
+  const p3 = document.getElementById('pill3');
+  p1.className = 'pill ' + (tmplLoaded ? 'done' : 'active');
+  p2.className = 'pill ' + (workLoaded ? 'done' : (tmplLoaded ? 'active' : ''));
+  p3.className = 'pill ' + (workLoaded ? 'active' : '');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────
+async function exportStory() {
+  if (!workLoaded) return;
+  toast('⏳ Building .story file…', '');
+  try {
+    const parser = new DOMParser();
+    const serializer = new XMLSerializer();
+    const enc = new TextEncoder();
+
+    // 1. Update story.xml — update each scene's sldIdLst based on which slides belong to it
+    const storyDoc = parser.parseFromString(workStoryXml, 'text/xml');
+
+    // Group workSlides by sceneGuid
+    const slidesByScene = {};
+    workSlides.forEach(s => {
+      if (!slidesByScene[s.sceneGuid]) slidesByScene[s.sceneGuid] = [];
+      slidesByScene[s.sceneGuid].push(s);
+    });
+
+    // Update ONLY scenes that have slides in workSlides — leave all other scenes untouched
+    Array.from(storyDoc.querySelectorAll('sceneLst scene')).forEach(scene => {
+      const sg = scene.getAttribute('g');
+      if (!slidesByScene[sg]) return; // not our scene — leave completely alone
+      const sldIdLst = scene.querySelector('sldIdLst');
+      if (!sldIdLst) return;
+      while (sldIdLst.firstChild) sldIdLst.removeChild(sldIdLst.firstChild);
+      slidesByScene[sg].forEach(s => {
+        const n = storyDoc.createElement('sldId');
+        n.textContent = s.relId;
+        sldIdLst.appendChild(n);
+      });
+    });
+
+    // 2. Update TOC — preserve all tocSceneEntry nodes, only update entryLst for managed scenes
+    // Build a map of existing tocSlideEntry nodes by refG so we can reuse them
+    Array.from(storyDoc.querySelectorAll('toc entryLst tocSceneEntry')).forEach(tocSceneEl => {
+      const refG = tocSceneEl.getAttribute('refG');
+      if (!slidesByScene[refG]) return; // not our scene — leave completely alone
+
+      // Get or create the entryLst inside this tocSceneEntry
+      let entryLst = tocSceneEl.querySelector('entryLst');
+      if (!entryLst) { entryLst = storyDoc.createElement('entryLst'); tocSceneEl.appendChild(entryLst); }
+
+      // Build a map of existing tocSlideEntry by refG so we preserve original node identities
+      const existingByRefG = {};
+      Array.from(entryLst.querySelectorAll('tocSlideEntry')).forEach(e => {
+        existingByRefG[e.getAttribute('refG')] = e;
+      });
+
+      // Clear and rebuild in current slide order
+      while (entryLst.firstChild) entryLst.removeChild(entryLst.firstChild);
+      slidesByScene[refG].forEach(s => {
+        if (existingByRefG[s.slideGuid]) {
+          // Reuse the original tocSlideEntry node — preserves g=, corG=, verG= exactly
+          entryLst.appendChild(existingByRefG[s.slideGuid]);
+        } else {
+          // New slide from template — create a fresh tocSlideEntry
+          const e = storyDoc.createElement('tocSlideEntry');
+          e.setAttribute('g', randomGuid());
+          e.setAttribute('verG', randomGuid());
+          e.setAttribute('refG', s.slideGuid);
+          e.setAttribute('corG', randomGuid());
+          e.setAttribute('expanded', 'true');
+          e.appendChild(storyDoc.createElement('entryLst'));
+          entryLst.appendChild(e);
+        }
+      });
+    });
+
+    const newStoryXml = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>' + serializer.serializeToString(storyDoc.documentElement);
+
+    // 3. Update rels
+    const relsDoc = parser.parseFromString(workRelsXml, 'text/xml');
+    const nsURI = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    Array.from(relsDoc.querySelectorAll('Relationship[Type="slide"]')).forEach(r => r.remove());
+    const relsRoot = relsDoc.querySelector('Relationships');
+    workSlides.forEach(s => {
+      const r = relsDoc.createElementNS(nsURI, 'Relationship');
+      r.setAttribute('Type', 'slide');
+      r.setAttribute('Target', '/' + s.file);
+      r.setAttribute('Id', s.relId);
+      relsRoot.appendChild(r);
+    });
+    const newRelsXml = '<?xml version="1.0" encoding="utf-8"?>' + serializer.serializeToString(relsDoc.documentElement);
+
+    // 4. Update [Content_Types].xml
+    const ctDoc = parser.parseFromString(workContentTypes, 'text/xml');
+    const ctNS = 'http://schemas.openxmlformats.org/package/2006/content-types';
+    const ctRoot = ctDoc.querySelector('Types');
+    workSlides.forEach(s => {
+      const pn = '/' + s.file;
+      if (!ctRoot.querySelector(`Override[PartName="${pn}"]`)) {
+        const ov = ctDoc.createElementNS(ctNS, 'Override');
+        ov.setAttribute('PartName', pn);
+        ov.setAttribute('ContentType', 'application/slide+xml');
+        ctRoot.appendChild(ov);
+      }
+    });
+    // Also register any new media extensions from template slides
+    const mediaExtMap = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', mp3:'audio/mpeg', mpeg:'video/mpeg', mp4:'video/mp4', svg:'image/svg+xml', webp:'image/webp' };
+    for (const path of Object.keys(workFiles)) {
+      if (!path.startsWith('story/media/')) continue;
+      const ext = path.split('.').pop().toLowerCase();
+      const mime = mediaExtMap[ext];
+      if (!mime) continue;
+      if (!ctRoot.querySelector('Default[Extension="' + ext + '"]')) {
+        const def = ctDoc.createElementNS(ctNS, 'Default');
+        def.setAttribute('Extension', ext);
+        def.setAttribute('ContentType', mime);
+        ctRoot.appendChild(def);
+      }
+    }
+    const newContentTypes = '<?xml version="1.0" encoding="utf-8"?>' + serializer.serializeToString(ctDoc.documentElement);
+
+    // 5. Build new zip
+    const newZip = new JSZip();
+
+    // Copy all workFiles (includes copied media from template)
+    for (const [path, bytes] of Object.entries(workFiles)) {
+      newZip.file(path, bytes);
+    }
+
+    // Overwrite modified files
+    newZip.file('story/story.xml', enc.encode(newStoryXml));
+    newZip.file('story/_rels/story.xml.rels', enc.encode(newRelsXml));
+    newZip.file('[Content_Types].xml', enc.encode(newContentTypes));
+
+    // Apply slide XML edits + name patches for from-template slides
+    for (let i = 0; i < workSlides.length; i++) {
+      const s = workSlides[i];
+      let xml;
+      if (editedXml[i] !== undefined) {
+        xml = editedXml[i];
+      } else {
+        xml = getText(workFiles, s.file) || '';
+      }
+      // Always patch name to current (handles renames)
+      xml = xml.replace(/(<sld\s[^>]*\bname=")[^"]*"/, '$1' + s.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '"');
+      newZip.file(s.file, enc.encode(xml));
+    }
+
+    // 6. Generate blob and download — name it .story (it's really a zip)
+    const blob = await newZip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = workFilename; // already ends in .story
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('✅ Exported ' + workFilename, 'ok');
+  } catch(e) {
+    toast('❌ Export failed: ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+// ── Reset ────────────────────────────────────────────────────────────────────
+function resetAll() {
+  if (!confirm('Reset everything and start over?')) return;
+
+  // Clear state
+  tmplZip = null; tmplFiles = {}; tmplSlides = []; tmplStoryXml = ''; tmplLoaded = false;
+  workZip = null; workFiles = {}; workSlides = [];
+  workFilename = 'output.story'; workStoryXml = ''; workRelsXml = ''; workContentTypes = '';
+  workLoaded = false; editedXml = {}; selectedSide = null; selectedIdx = null; dragSrcIdx = null;
+
+  // Restore template upload zone
+  const tZone = document.getElementById('tmplZone');
+  tZone.className = 'upload-zone';
+  tZone.innerHTML = `<div class="uz-icon">📋</div><div class="uz-title">Drop Template .story file</div><div class="uz-sub">Renames .story → .zip internally, extracts, reads slides</div><input type="file" id="tmplInput" accept=".story,.zip"><button class="uz-btn" onclick="document.getElementById('tmplInput').click()">Choose Template File</button>`;
+  wireUpload('tmplZone', 'tmplInput', handleTemplateFile);
+
+  // Restore working upload zone
+  const wZone = document.getElementById('workZone');
+  wZone.className = 'upload-zone';
+  wZone.innerHTML = `<div class="uz-icon">📂</div><div class="uz-title">Drop Working .story file</div><div class="uz-sub">This is the file you'll export at the end</div><input type="file" id="workInput" accept=".story,.zip"><button class="uz-btn" onclick="document.getElementById('workInput').click()">Choose Working File</button>`;
+  wireUpload('workZone', 'workInput', handleWorkingFile);
+
+  // Reset sidebar lists
+  document.getElementById('tmplList').innerHTML = '<div class="empty"><div class="icon">📋</div><p>No template loaded</p></div>';
+  document.getElementById('workList').innerHTML = '<div class="empty"><div class="icon">📂</div><p>No working file loaded</p></div>';
+  document.getElementById('tmplCount').textContent = '—';
+  document.getElementById('workCount').textContent = '—';
+
+  // Hide panels
+  document.getElementById('editSection').style.display = 'none';
+  document.getElementById('exportBar').style.display = 'none';
+  document.getElementById('slideDetailCard').style.display = 'none';
+  document.getElementById('xmlEditorCard').style.display = 'none';
+  document.getElementById('removeCard').style.display = 'none';
+  document.getElementById('addFromTmplCard').style.display = 'none';
+
+  updatePills();
+  toast('↺ Reset — ready for new files', 'ok');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + (type || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+updatePills();
+</script>
+</body>
+</html>
